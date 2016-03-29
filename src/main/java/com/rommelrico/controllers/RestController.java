@@ -11,7 +11,7 @@ import com.rommelrico.models.User;
 import com.rommelrico.services.DataService;
 
 @org.springframework.web.bind.annotation.RestController
-@RequestMapping("/api/users")
+@RequestMapping("/v1/users")
 public class RestController {
 
 	@Autowired

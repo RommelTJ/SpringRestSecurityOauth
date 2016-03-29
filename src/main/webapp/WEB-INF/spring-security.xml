@@ -18,40 +18,45 @@
 		<http-basic entry-point-ref="clientAuthenticationEntryPoint" />
 		<!-- include this only if you need to authenticate clients via request 
 			parameters -->
-		<custom-filter ref="clientCredentialsTokenEndpointFilter"
-			after="BASIC_AUTH_FILTER" />
+		<custom-filter ref="clientCredentialsTokenEndpointFilter" after="BASIC_AUTH_FILTER" />
 		<access-denied-handler ref="oauthAccessDeniedHandler" />
 	</http>
 
 	<!-- This is where we tells spring security what URL should be protected 
 		and what roles have access to them -->
-	<http pattern="/api/**" create-session="never"
+	<http pattern="/v1/firebase/**" create-session="never"
 		entry-point-ref="oauthAuthenticationEntryPoint"
 		access-decision-manager-ref="accessDecisionManager"
 		xmlns="http://www.springframework.org/schema/security">
 		<anonymous enabled="false" />
-		<intercept-url pattern="/api/**" access="ROLE_APP" />
+		<intercept-url pattern="/v1/firebase/**" access="ROLE_APP" />
+		<custom-filter ref="resourceServerFilter" before="PRE_AUTH_FILTER" />
+		<access-denied-handler ref="oauthAccessDeniedHandler" />
+	</http>
+
+	<http pattern="/v1/banner/**" create-session="never"
+		  entry-point-ref="oauthAuthenticationEntryPoint"
+		  access-decision-manager-ref="accessDecisionManager"
+		  xmlns="http://www.springframework.org/schema/security">
+		<anonymous enabled="false" />
+		<intercept-url pattern="/v1/banner/**" access="ROLE_APP" />
 		<custom-filter ref="resourceServerFilter" before="PRE_AUTH_FILTER" />
 		<access-denied-handler ref="oauthAccessDeniedHandler" />
 	</http>
 
 
-	<bean id="oauthAuthenticationEntryPoint"
-		class="org.springframework.security.oauth2.provider.error.OAuth2AuthenticationEntryPoint">
+	<bean id="oauthAuthenticationEntryPoint" class="org.springframework.security.oauth2.provider.error.OAuth2AuthenticationEntryPoint">
 		<property name="realmName" value="test" />
 	</bean>
 
-	<bean id="clientAuthenticationEntryPoint"
-		class="org.springframework.security.oauth2.provider.error.OAuth2AuthenticationEntryPoint">
+	<bean id="clientAuthenticationEntryPoint" class="org.springframework.security.oauth2.provider.error.OAuth2AuthenticationEntryPoint">
 		<property name="realmName" value="test/client" />
 		<property name="typeName" value="Basic" />
 	</bean>
 
-	<bean id="oauthAccessDeniedHandler"
-		class="org.springframework.security.oauth2.provider.error.OAuth2AccessDeniedHandler" />
+	<bean id="oauthAccessDeniedHandler" class="org.springframework.security.oauth2.provider.error.OAuth2AccessDeniedHandler" />
 
-	<bean id="clientCredentialsTokenEndpointFilter"
-		class="org.springframework.security.oauth2.provider.client.ClientCredentialsTokenEndpointFilter">
+	<bean id="clientCredentialsTokenEndpointFilter" class="org.springframework.security.oauth2.provider.client.ClientCredentialsTokenEndpointFilter">
 		<property name="authenticationManager" ref="clientAuthenticationManager" />
 	</bean>
 
@@ -66,47 +71,45 @@
 		</constructor-arg>
 	</bean>
 
-	<authentication-manager id="clientAuthenticationManager"
-		xmlns="http://www.springframework.org/schema/security">
+	<authentication-manager id="clientAuthenticationManager" xmlns="http://www.springframework.org/schema/security">
 		<authentication-provider user-service-ref="clientDetailsUserService" />
 	</authentication-manager>
 
 
-	<!-- This is simple authentication manager, with a hardcoded user/password 
-		combination. We can replace this with a user defined service to get few users 
-		credentials from DB -->
-	<authentication-manager alias="authenticationManager"
-		xmlns="http://www.springframework.org/schema/security">
-		<authentication-provider>
-			<user-service>
-				<user name="rommel" password="password" authorities="ROLE_APP" />
-			</user-service>
-		</authentication-provider>
+	<!-- This authentication manager gets user from LDAP -->
+	<authentication-manager alias="authenticationManager" xmlns="http://www.springframework.org/schema/security">
+		<ldap-authentication-provider user-dn-pattern="REDACTED"
+									  server-ref="ldapServer"
+									  user-search-base="REDACTED"
+									  user-search-filter="(uid={0})"
+									  group-search-base="REDACTED"
+									  group-role-attribute="cn"
+									  group-search-filter="(uniqueMember={0})" />
 	</authentication-manager>
 
-	<bean id="clientDetailsUserService"
-		class="org.springframework.security.oauth2.provider.client.ClientDetailsUserDetailsService">
+	<sec:ldap-server id="ldapServer"
+					 url="REDACTED"
+					 manager-dn="REDACTED"
+					 manager-password="REDACTED" />
+
+	<bean id="clientDetailsUserService" class="org.springframework.security.oauth2.provider.client.ClientDetailsUserDetailsService">
 		<constructor-arg ref="clientDetails" />
 	</bean>
 
 
-	<!-- This defined token store, we have used inmemory tokenstore for now 
-		but this can be changed to a user defined one -->
-	<bean id="tokenStore"
-		class="org.springframework.security.oauth2.provider.token.InMemoryTokenStore" />
+	<!-- This defined token store, we have used InMemoryTokenStore for now but this can be changed to a user defined one -->
+	<bean id="tokenStore" class="org.springframework.security.oauth2.provider.token.InMemoryTokenStore" />
 
-	<!-- This is where we defined token based configurations, token validity 
-		and other things -->
+	<!-- This is where we defined token based configurations, token validity and other things -->
 	<bean id="tokenServices"
 		class="org.springframework.security.oauth2.provider.token.DefaultTokenServices">
 		<property name="tokenStore" ref="tokenStore" />
 		<property name="supportRefreshToken" value="true" />
-		<property name="accessTokenValiditySeconds" value="20" />
+		<property name="accessTokenValiditySeconds" value="120" />
 		<property name="clientDetailsService" ref="clientDetails" />
 	</bean>
 
-	<bean id="userApprovalHandler"
-		class="org.springframework.security.oauth2.provider.approval.TokenServicesUserApprovalHandler">
+	<bean id="userApprovalHandler" class="org.springframework.security.oauth2.provider.approval.TokenServicesUserApprovalHandler">
 		<property name="tokenServices" ref="tokenServices" />
 	</bean>
 
@@ -120,14 +123,13 @@
 		<oauth:password />
 	</oauth:authorization-server>
 
-	<oauth:resource-server id="resourceServerFilter"
-		resource-id="test" token-services-ref="tokenServices" />
+	<oauth:resource-server id="resourceServerFilter" resource-id="test" token-services-ref="tokenServices" />
 
 	<oauth:client-details-service id="clientDetails">
 		<!-- client -->
-		<oauth:client client-id="restapp"
-			authorized-grant-types="authorization_code,client_credentials"
-			authorities="ROLE_APP" scope="read,write,trust" secret="secret" />
+		<!--<oauth:client client-id="restapp"-->
+			<!--authorized-grant-types="authorization_code,client_credentials"-->
+			<!--authorities="ROLE_APP" scope="read,write,trust" secret="secret" />-->
 
 		<oauth:client client-id="restapp"
 			authorized-grant-types="password,authorization_code,refresh_token,implicit"
@@ -135,8 +137,7 @@
 
 	</oauth:client-details-service>
 
-	<sec:global-method-security
-		pre-post-annotations="enabled" proxy-target-class="true">
+	<sec:global-method-security pre-post-annotations="enabled" proxy-target-class="true">
 		<!--you could also wire in the expression handler up at the layer of the 
 			http filters. See https://jira.springsource.org/browse/SEC-1452 -->
 		<sec:expression-handler ref="oauthExpressionHandler" />
